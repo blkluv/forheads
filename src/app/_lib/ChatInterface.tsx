@@ -16,25 +16,44 @@ import ConnectButton from "@/components/web3/connect-button";
 import { Button } from "@/components/ui/button";
 import { RefreshCwIcon } from "lucide-react";
 
+// Define a more explicit type for the data fetched by useConversation
+interface ConversationData {
+  conversationId: string;
+  message: {
+    id: string;
+    role: "user" | "assistant" | string;
+    content: string;
+    createdAt?: string | null;
+    [key: string]: any; // Allow other properties
+  };
+}
+
 export function ChatInterface() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const conversation = useConversation({
+  const conversation = useConversation<{ data: ConversationData[] | undefined }>({
     address: address,
   });
   const initalMessages: Message[] = [];
   for (const m of conversation.data ?? []) {
+    // Explicitly construct the Message object
     initalMessages.push({
-      ...m.message,
-      createdAt: m.message.createdAt
-        ? new Date(m.message.createdAt)
-        : undefined,
-    });
+      id: m.message.id,
+      role: m.message.role,
+      content: m.message.content,
+      createdAt: m.message.createdAt ? new Date(m.message.createdAt) : undefined,
+      // Spread any other properties if needed, but be mindful of the types
+      ...(Object.fromEntries(
+        Object.entries(m.message).filter(
+          ([key]) => !["id", "role", "content", "createdAt"].includes(key)
+        )
+      ) as Omit<ConversationData["message"], "id" | "role" | "content" | "createdAt">),
+    } as Message);
   }
 
   const chat = useChat({
     api: "/api/conversation",
-    id: conversation.data?.[0].conversationId,
+    id: conversation.data?.[0]?.conversationId,
     onToolCall: (toolCall) => {
       console.log("useChat onToolCall", toolCall);
     },
@@ -70,7 +89,7 @@ export function ChatInterface() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isStreaming, isError]);
+  }, [isLoading, isStreaming, isError, chat.messages]); // Include chat.messages
 
   const handleSendMessage = async (content: string) => {
     console.log("handleSendMessage", content);
@@ -164,7 +183,7 @@ export function ChatInterface() {
         buttonProps={{
           className: cn(
             "rounded-md",
-            (isLoading || isStreaming) && "opacity-50",
+            (isLoading || isStreaming) && "opacity-50"
           ),
         }}
         inputProps={{
@@ -185,7 +204,7 @@ export function ChatInterface() {
               isLoading && "bg-yellow-500",
               isStreaming && "bg-blue-500 animate-pulse",
               isError && "bg-red-500",
-              !isLoading && !isStreaming && !isError && "bg-green-500",
+              !isLoading && !isStreaming && !isError && "bg-green-500"
             )}
           />
           <span>
